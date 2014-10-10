@@ -5,6 +5,7 @@ version="1.0"
 mirror="http://127.0.0.1:3142/ftp.hk.debian.org/debian"
 packages=""
 debs=""
+disktype="mmc"
 
 # Indicates whether we're bootstrapping onto a real disk
 realdisk=0
@@ -29,7 +30,7 @@ warn() {
 	then
 		func="main"
 	fi
-	FG="1;31m"
+	FG="1;33m"
 	BG="40m"
 	echo -e "[\033[${FG}\033[${BG}${func}\033[0m] $*"
 }
@@ -246,7 +247,25 @@ deb_install() {
 configure_fstab() {
 	local root="$1"
 
-	warn "!!! NEED TO CONFIGURE FSTAB HERE !!!"
+	if [ "${disktype}" = "mmc" ]
+	then
+		rootpath="/dev/disk/by-path/platform-2198000.usdhc-part1"
+	elif [ "${disktype}" = "sata" ]
+	then
+		rootpath="/dev/sda"
+	else
+		fail "Unrecognized disktype: ${disktype}"
+	fi
+
+	cat > "${root}/etc/fstab" <<EOF
+${rootpath}3   /                    ext4       barrier=1,noatime,nodiratime,errors=remount-ro     0  1
+proc                 /proc                proc       defaults                      0  0
+devpts               /dev/pts             devpts     mode=0620,gid=5               0  0
+tmpfs                /tmp                 tmpfs      defaults                      0  0
+pstore               /var/pstore          pstore     defaults                      0  0
+/dev/disk/by-path/platform-2198000.usdhc-part1 /boot     vfat       defaults                      2  2
+${rootpath}2   swap                 swap       defaults                      0  0
+EOF
 }
 
 remove_ssh_keys() {
@@ -350,8 +369,10 @@ fi
 # Unmount things, and generally clean up on exit
 trap cleanup EXIT
 
+info "Creating a ${disktype} image"
+
 # If a disk path and a type are specified, we're writing to a real disk
-if [ ! -z "${diskname}" ] && [ ! -z "${disktype}" ]
+if [ ! -z "${diskname}" ]
 then
 	realdisk=1
 	info "Ensuring disk is unmounted"
@@ -361,9 +382,6 @@ then
 		root="/tmp/newroot"
 	fi
 	prepare_disk "${diskname}" "${disktype}" "${root}"
-elif [ ! -z "${diskname}" ] || [ ! -z "${disktype}" ]
-then
-	fail "Must specify both a --disk path and a disk --type"
 elif [ -z "${root}" ]
 then
 	fail "Must specify a root directory with -r or --root"
@@ -387,7 +405,7 @@ else
 	info "No additional .deb files were requested"
 fi
 
-configure_fstab "${root}"
+configure_fstab "${root}" "${disktype}"
 
 remove_ssh_keys "${root}"
 
