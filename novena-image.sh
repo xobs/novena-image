@@ -13,8 +13,8 @@ realdisk=0
 things_mounted=0
 
 info() {
-	func="${FUNCNAME[1]}"
-	if [ -z ${func} ]
+	func="$(echo "${FUNCNAME[1]}" | tr _ ' ')"
+	if [ "x${func}" = "x" ]
 	then
 		func="main"
 	fi
@@ -24,8 +24,8 @@ info() {
 }
 
 warn() {
-	func="${FUNCNAME[1]}"
-	if [ -z ${func} ]
+	func="$(echo "${FUNCNAME[1]}" | tr _ ' ')"
+	if [ "x${func}" = "x" ]
 	then
 		func="main"
 	fi
@@ -35,8 +35,8 @@ warn() {
 }
 
 fail() {
-	func="${FUNCNAME[1]}"
-	if [ -z ${func} ]
+	func="$(echo "${FUNCNAME[1]}" | tr _ ' ')"
+	if [ "x${func}" = "x" ]
 	then
 		func="main"
 	fi
