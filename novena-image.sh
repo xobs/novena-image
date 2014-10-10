@@ -180,9 +180,11 @@ prepare_root() {
 	echo '#!/bin/sh' > "${root}/usr/sbin/policy-rc.d"
 	echo 'echo "All runlevel operations denied by policy" >&2' >> "${root}/usr/sbin/policy-rc.d"
 	echo 'exit 101' >> "${root}/usr/sbin/policy-rc.d"
+	mkdir -p "${root}/usr/sbin/"
 	chmod a+x "${root}/usr/sbin/policy-rc.d" || fail "Couldn't make file executable"
 
 	info "Creating a 'first-run' file"
+	mkdir -p "${root}/var/run"
 	touch "${root}/var/run/firstrun"
 }
 
