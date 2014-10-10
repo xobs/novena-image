@@ -331,7 +331,7 @@ while true ; do
 		-r|--root) root="$2"; shift 2 ;;
 		-l|--packages) packages="$2"; info "Packages: $2"; shift 2 ;;
 		-s|--suite) suite="$2"; shift 2 ;;
-		-a|--add-deb) debs="${debs} $2"; shift 2 ;;
+		-a|--add-deb) debs="${debs} $2"; if [ ! -e "$2" ]; then fail "Couldn't locate package: $2"; fi; shift 2 ;;
 		-h|--help) usage; exit 0 ;;
 		--) shift ; break ;;
 		*) fail "Internal getopt error!" ; exit 1 ;;
