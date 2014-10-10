@@ -14,7 +14,8 @@ exec sudo ./novena-image.sh \
 	-a pulseaudio-novena_1.0-1_all.deb \
 	-a irqbalance_0.56-1ubuntu4-rmk1_armhf.deb \
 	-a novena-disable-ssp_1.1-1_armhf.deb \
-	-a u-boot-novena_2014.10-novena-rc2_armhf.deb \
+	-a u-boot-novena_2014.10-novena-rc3_armhf.deb \
+	-a linux-image-3.17.0-rc5-00054-gdb75754_1.3_armhf.deb \
 	-l "sudo openssh-server ntp ntpdate dosfstools btrfs-tools \
 	    novena-eeprom xserver-xorg-video-modesetting task-xfce-desktop \
 	    hicolor-icon-theme gnome-icon-theme tango-icon-theme keychain \
@@ -30,4 +31,5 @@ exec sudo ./novena-image.sh \
 	    bluez-hcidump bison bc automake autoconf pidgin alsa-utils verilog \
 	    i2c-tools hwinfo android-tools-adb android-tools-fastboot \
 	    android-tools-fsutils bash-completion kicad ncurses-dev gdb lzop \
-	    gawk bison g++ gcc"
+	    gawk bison g++ gcc flex pkg-config valgrind lconv netcat wireshark \
+	    kismet aircrack-ng socat"

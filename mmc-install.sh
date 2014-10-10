@@ -7,29 +7,31 @@ then
 fi
 
 echo "Constructing a disk image on $1"
-exec sudo ./novena-image.sh \
+time sudo ./novena-image.sh \
 	-d $1 \
 	-t mmc \
 	-s jessie \
 	-a pulseaudio-novena_1.0-1_all.deb \
 	-a irqbalance_0.56-1ubuntu4-rmk1_armhf.deb \
 	-a novena-disable-ssp_1.1-1_armhf.deb \
-	-a u-boot-novena_2014.10-novena-rc2_armhf.deb \
+	-a novena-firstrun_1.0-r1_all.deb \
+	-a u-boot-novena_2014.10-novena-rc5_armhf.deb \
+	-a linux-image-3.17.0-rc5-00054-g8a738b8_1.4_armhf.deb \
 	-l "sudo openssh-server ntp ntpdate dosfstools novena-eeprom \
-            xserver-xorg-video-modesetting arandr \
-	    hicolor-icon-theme gnome-icon-theme keychain \
+            xserver-xorg-video-modesetting arandr user-setup vim emacs \
+	    hicolor-icon-theme gnome-icon-theme keychain locales \
 	    avahi-daemon avahi-dnsconfd libnss-mdns debootstrap \
-	    python build-essential xscreensaver vim emacs \
+	    python build-essential xscreensaver console-data \
 	    x11-xserver-utils usbutils unzip xz-utils subversion git make \
 	    screen tmux read-edid powertop powermgmt-base pavucontrol \
 	    p7zip-full paprefs pciutils nmap ntfs-3g network-manager-vpnc \
 	    network-manager-pptp network-manager-openvpn bash-completion \
-	    network-manager-iodine xchat icedove iceweasel gnupg2 \
+	    network-manager-iodine hexchat icedove iceweasel gnupg2 \
 	    git-email git-man fuse enigmail dc curl clang bridge-utils \
 	    bluez bluez-tools bluez-hcidump bison bc automake autoconf \
 	    pidgin alsa-utils i2c-tools hwinfo android-tools-adb \
-	    android-tools-fastboot android-tools-fsutils \
+	    android-tools-fastboot android-tools-fsutils smartmontools \
 	    xfce4-goodies xfce4-power-manager xfce4-mixer xfce4-terminal \
-	    mousepad orage libreoffice-gtk dbus-x11 quodlibet evince-gtk \
-	    tango-icon-theme network-manager-gnome synaptic \
-	    gnome-orca ncurses-dev gdb lzop lzop gawk bison g++ gcc"
+	    mousepad orage dbus-x11 quodlibet evince-gtk irssi strace \
+	    tango-icon-theme network-manager-gnome synaptic pkg-config \
+	    gnome-orca ncurses-dev gdb lzop lzop gawk bison g++ gcc flex"
