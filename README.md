@@ -1,6 +1,16 @@
 Novena Image
 ============
 
+Create Debian disk images that can be used to boot Novena systems.
+
+
+Synopsis
+--------
+
+The script comes with a help screen that can be used to customize the
+resulting image.  For examples, see wraper scripts such as "novena-mmc.sh"
+and "novena-sata.sh".
+
 
 Recommended package lists
 -------------------------
