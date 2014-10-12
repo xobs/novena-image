@@ -186,8 +186,8 @@ prepare_root() {
 	chmod a+x "${root}/usr/sbin/policy-rc.d" || fail "Couldn't make file executable"
 
 	info "Creating a 'first-run' file"
-	mkdir -p "${root}/var/run"
-	touch "${root}/var/run/firstrun"
+	mkdir -p "${root}/var/lib"
+	touch "${root}/var/lib/firstrun"
 }
 
 reset_password() {
