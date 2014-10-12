@@ -6,6 +6,7 @@ mirror="http://127.0.0.1:3142/ftp.hk.debian.org/debian"
 packages=""
 debs=""
 disktype="mmc"
+bootsize=+64M
 
 # Indicates whether we're bootstrapping onto a real disk
 realdisk=0
@@ -98,7 +99,7 @@ n
 p
 1
 
-+32M
+${bootsize}
 n
 p
 2
