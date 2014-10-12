@@ -250,7 +250,7 @@ configure_fstab() {
 
 	if [ "${disktype}" = "mmc" ]
 	then
-		rootpath="/dev/disk/by-path/platform-2198000.usdhc-part1"
+		rootpath="/dev/disk/by-path/platform-2198000.usdhc-part"
 	elif [ "${disktype}" = "sata" ]
 	then
 		rootpath="/dev/sda"
