@@ -6,7 +6,7 @@ mirror="http://127.0.0.1:3142/ftp.hk.debian.org/debian"
 packages=""
 debs=""
 disktype="mmc"
-bootsize=+64M
+bootsize=+32M
 
 # Indicates whether we're bootstrapping onto a real disk
 realdisk=0
@@ -245,6 +245,25 @@ deb_install() {
 	done
 }
 
+setup_recovery() {
+	local root="$1"
+
+	if [ -e "${root}/boot/zImage" -a -e "${root}/boot/novena.dtb" ]
+	then
+		if [ -e "${root}/boot/zImage.recovery" ]
+		then
+			info "Not setting up recovery kernel, one already exists"
+			return
+		fi
+
+		info "Setting up recovery kernel"
+		cp "${root}/boot/zImage" "${root}/boot/zImage.recovery" || fail "Couldn't copy recovery kernel"
+		cp "${root}/boot/novena.dtb" "${root}/boot/novena.dtb.recovery" || fail "Couldn't copy recovery device tree file"
+	else
+		info "No kernel installed, not setting up recovery kernel"
+	fi
+}
+
 configure_fstab() {
 	local root="$1"
 
@@ -407,6 +426,8 @@ else
 fi
 
 configure_fstab "${root}" "${disktype}"
+
+setup_recovery "${root}"
 
 remove_ssh_keys "${root}"
 
