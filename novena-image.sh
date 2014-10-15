@@ -14,6 +14,9 @@ realdisk=0
 # Set to 1 once things get mounted to the root
 things_mounted=0
 
+# Set to 1 (using -q) to skip partitioning, formatting, and bootstrapping.
+quick=0
+
 info() {
 	func="$(echo "${FUNCNAME[1]}" | tr _ ' ')"
 	if [ "x${func}" = "x" ]
@@ -133,8 +136,12 @@ prepare_disk() {
 	local diskname="$1"
 	local disktype="$2"
 	local root="$3"
+	local quick="$4"
 
-	partition_disk "${diskname}" "${disktype}"
+	if [ "${quick}" != "1" ]
+	then
+		partition_disk "${diskname}" "${disktype}"
+	fi
 
 	# MMC devices are weirdly labeled mmcblk0p1 rather than mmcblk01
 	if echo "${diskname}" | grep -q mmcblk
@@ -142,9 +149,12 @@ prepare_disk() {
 		diskname="${diskname}p"
 	fi
 
-	mkfs.vfat ${diskname}1 || fail "Unable to make boot partition"
-	mkswap -f ${diskname}2 || fail "Unable to make swap"
-	mkfs.ext4 -F ${diskname}3 || fail "Unable to make root filesystem"
+	if [ "${quick}" != "1" ]
+	then
+		mkfs.vfat ${diskname}1 || fail "Unable to make boot partition"
+		mkswap -f ${diskname}2 || fail "Unable to make swap"
+		mkfs.ext4 -F ${diskname}3 || fail "Unable to make root filesystem"
+	fi
 
 	mkdir -p "${root}" || fail "Unable to create factory mount directory"
 	mount ${diskname}3 "${root}" || fail "Unable to mount new root filesystem"
@@ -258,7 +268,7 @@ setup_recovery() {
 
 		info "Setting up recovery kernel"
 		cp "${root}/boot/zImage" "${root}/boot/zImage.recovery" || fail "Couldn't copy recovery kernel"
-		cp "${root}/boot/novena.dtb" "${root}/boot/novena.dtb.recovery" || fail "Couldn't copy recovery device tree file"
+		cp "${root}/boot/novena.dtb" "${root}/boot/novena.recovery.dtb" || fail "Couldn't copy recovery device tree file"
 	else
 		info "No kernel installed, not setting up recovery kernel"
 	fi
@@ -348,6 +358,7 @@ usage() {
 	echo "    -a  --add-deb  Specify additional .deb files to include in"
 	echo "                   the disk image.  You may use --add-deb"
 	echo "                   multiple times to install more than one .deb."
+	echo "    -q  --quick    Don't repartition, reformat, or botstrap."
 	echo "    -h  --help     Print this help message."
 	echo ""
 }
@@ -356,8 +367,8 @@ usage() {
 
 ##########################################################
 
-temp=`getopt -o m:d:t:p:r:l:s:a:h \
-	--long mirror:,disk:,type:,rootpass:,root:,packages:,suite:,add-deb:,help \
+temp=`getopt -o m:d:t:p:r:l:s:a:hq \
+	--long quick,mirror:,disk:,type:,rootpass:,root:,packages:,suite:,add-deb:,help \
 	-n 'novena-image' -- "$@"`
 if [ $? != 0 ] ; then fail "Terminating..." >&2 ; exit 1 ; fi
 eval set -- "$temp"
@@ -371,6 +382,7 @@ while true ; do
 		-l|--packages) packages="$2"; info "Packages: $2"; shift 2 ;;
 		-s|--suite) suite="$2"; shift 2 ;;
 		-a|--add-deb) debs="${debs} $2"; if [ ! -e "$2" ]; then fail "Couldn't locate package: $2"; fi; shift 2 ;;
+		-q|--quick) quick=1; shift 1 ;;
 		-h|--help) usage; exit 0 ;;
 		--) shift ; break ;;
 		*) fail "Internal getopt error!" ; exit 1 ;;
@@ -401,13 +413,16 @@ then
 	then
 		root="/tmp/newroot"
 	fi
-	prepare_disk "${diskname}" "${disktype}" "${root}"
+	prepare_disk "${diskname}" "${disktype}" "${root}" "${quick}"
 elif [ -z "${root}" ]
 then
 	fail "Must specify a root directory with -r or --root"
 fi
 
-bootstrap "${suite}" "${root}" "${mirror}"
+if [ "${quick}" != "1" ]
+then
+	bootstrap "${suite}" "${root}" "${mirror}"
+fi
 
 prepare_root "${root}"
 
