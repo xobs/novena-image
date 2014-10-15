@@ -17,6 +17,12 @@ things_mounted=0
 # Set to 1 (using -q) to skip partitioning, formatting, and bootstrapping.
 quick=0
 
+# If creating a disk using loopback, set to 1
+loopback=0
+
+# This is the size of the "4GiB" cards we've worked with.
+loopback_size=3965190144
+
 info() {
 	func="$(echo "${FUNCNAME[1]}" | tr _ ' ')"
 	if [ "x${func}" = "x" ]
@@ -68,6 +74,20 @@ unmount_in_dir() {
 cleanup() {
 	info "Unmounting devices from chroot"
 	unmount_in_dir "${root}"
+
+	if [ ${loopback} -ne 0 ]
+	then
+		info "Unmounting loopback"
+		if [ ! -z "${loopname}" ]
+		then
+			losetup -d "${loopname}"
+			unset loopname
+		fi
+		if [ ! -z "${loopname}" ]
+		then
+			kpartx -v -d "${filename}"
+		fi
+	fi
 }
 
 partition_disk() {
@@ -132,19 +152,42 @@ EOF
 	fi
 }
 
+prepare_loopback() {
+	local imgname="$1"
+	local imgsize="$2"
+	local quick="$3"
+
+	filename="${imgname}"
+
+	info "Creating a new file ${imgname} with size ${imgsize}"
+	truncate "-s${imgsize}" "${imgname}" || error "Unable to create file"
+
+	if [ ${quick} -ne 1 ]
+	then
+		partition_disk "${filename}" "${disktype}"
+	fi
+
+	diskname=$(kpartx -s -a -v "${imgname}" | cut -d' ' -f8 | uniq | grep loop)
+	if [ $? -ne 0 ]
+	then
+		fail "Unable to map image to /dev/maper using kpartx"
+	fi
+}
+
 prepare_disk() {
 	local diskname="$1"
 	local disktype="$2"
 	local root="$3"
 	local quick="$4"
 
-	if [ "${quick}" != "1" ]
+	# Loopback devices are also weird, /dev/loop0 becomes /dev/mapper/loop0p1
+	if [ ${loopback} -ne 0 ]
 	then
-		partition_disk "${diskname}" "${disktype}"
-	fi
+		base="$(echo "${diskname}" | cut -d/ -f3)"
+		diskname="/dev/mapper/${base}p"
 
 	# MMC devices are weirdly labeled mmcblk0p1 rather than mmcblk01
-	if echo "${diskname}" | grep -q mmcblk
+	elif echo "${diskname}" | grep -q mmcblk
 	then
 		diskname="${diskname}p"
 	fi
@@ -413,7 +456,29 @@ then
 	then
 		root="/tmp/newroot"
 	fi
+
+	if [ ! -e "${diskname}" ] || [ "$(stat -L -c '%F' ${diskname})" != "block special file" ]
+	then
+		if [ -e "${diskname}" ]
+		then
+			warn "Disk exists, overwriting it"
+		else
+			info "Disk does not exist.  Creating loopback device."
+		fi
+
+		loopback=1
+		# prepare_loopback will partition the disk if necessary
+		prepare_loopback "${diskname}" "${loopback_size}" "${quick}"
+	else
+
+		# Partition a regular disk here
+		if [ ${quick} -ne 1 ]
+		then
+			partition_disk "${diskname}" "${disktype}"
+		fi
+	fi
 	prepare_disk "${diskname}" "${disktype}" "${root}" "${quick}"
+
 elif [ -z "${root}" ]
 then
 	fail "Must specify a root directory with -r or --root"
