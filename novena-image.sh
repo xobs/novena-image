@@ -23,6 +23,24 @@ loopback=0
 # This is the size of the "4GiB" cards we've worked with.
 loopback_size=3965190144
 
+# Sometimes the SHA1 sum comes out as all zeroes.  For reasons why I don't know.
+allzeros_shasum="3b71f43ff30f4b15b5cd85dd9e95ebc7e84eb5a3"
+
+checksha1sum() {
+	local file="$1"
+
+	if [ ! -z ${file} ]
+	then
+		checksum=$(dd if="${file}" bs=1M skip=1 count=1 | shasum - | awk '{print $1}')
+		if [ "x${checksum}" = "x${allzeros_shasum}" ]
+		then
+			fail "Checksum failed.  File appears to be all zeroes"
+		fi
+	else
+		info "Not checking file sum"
+	fi
+}
+
 info() {
 	func="$(echo "${FUNCNAME[1]}" | tr _ ' ')"
 	if [ "x${func}" = "x" ]
@@ -83,10 +101,7 @@ cleanup() {
 			losetup -d "${loopname}"
 			unset loopname
 		fi
-		if [ ! -z "${loopname}" ]
-		then
-			kpartx -v -d "${filename}"
-		fi
+		kpartx -v -d "${diskname}"
 	fi
 }
 
@@ -167,7 +182,7 @@ prepare_loopback() {
 		partition_disk "${filename}" "${disktype}"
 	fi
 
-	diskname=$(kpartx -s -a -v "${imgname}" | cut -d' ' -f8 | uniq | grep loop)
+	diskname=$(kpartx -s -v -a "${imgname}" | cut -d' ' -f8 | uniq | grep loop)
 	if [ $? -ne 0 ]
 	then
 		fail "Unable to map image to /dev/maper using kpartx"
@@ -345,11 +360,14 @@ remove_ssh_keys() {
 	local root="$1"
 
 	info "Removing generated SSH keys"
-	rm -f "${root}/etc/ssh/*key" "${root}/etc/ssh/*.key.pub" || fail "Unable to remove SSH keys"
+	rm -f "${root}/etc/ssh/ssh_host_"* || fail "Unable to remove SSH keys"
 }
 
 finalize_root() {
 	local root="$1"
+
+	inf "Resetting hostname to 'novena'"
+	echo "novena" > "${root}/etc/hostname"
 
 	info "Enabling serial console support"
 	chroot "${root}" sudo systemctl enable serial-getty@ttymxc1.service || fail "Couldn't enable serial console"
@@ -454,7 +472,7 @@ then
 	unmount_in_dir "${diskname}"
 	if [ -z "${root}" ]
 	then
-		root="/tmp/newroot"
+		root="/tmp/newroot.$$"
 	fi
 
 	if [ ! -e "${diskname}" ] || [ "$(stat -L -c '%F' ${diskname})" != "block special file" ]
@@ -484,36 +502,51 @@ then
 	fail "Must specify a root directory with -r or --root"
 fi
 
+checksha1sum "${filename}"
+
 if [ "${quick}" != "1" ]
 then
 	bootstrap "${suite}" "${root}" "${mirror}"
+	checksha1sum "${filename}"
 fi
 
 prepare_root "${root}"
+checksha1sum "${filename}"
 
 reset_password "${root}" "${rootpass}"
+checksha1sum "${filename}"
 
 add_sources "${root}"
+checksha1sum "${filename}"
 
 info "Selected packages: '${packages}'"
 apt_install "${root}" "${packages}"
+checksha1sum "${filename}"
 
 if [ ! -z "${debs}" ]
 then
 	deb_install "${root}" ${debs}
+	checksha1sum "${filename}"
 else
 	info "No additional .deb files were requested"
 fi
 
 configure_fstab "${root}" "${disktype}"
+checksha1sum "${filename}"
 
 setup_recovery "${root}"
+checksha1sum "${filename}"
 
 remove_ssh_keys "${root}"
+checksha1sum "${filename}"
 
 finalize_root "${root}"
+checksha1sum "${filename}"
 
 if [ ${realdisk} -ne 0 ]
 then
 	write_uboot_spl "${root}" "/boot/u-boot.spl" "${diskname}"
+	checksha1sum "${filename}"
 fi
+
+checksha1sum "${filename}"
