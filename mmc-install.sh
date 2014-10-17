@@ -7,17 +7,19 @@ then
 fi
 
 echo "Constructing a disk image on $1"
-time sudo ./novena-image.sh \
+time sudo /bin/bash -x ./novena-image.sh \
 	-d $1 \
 	-t mmc \
 	-s jessie \
-	-a u-boot-novena_2014.10-novena-rc9_armhf.deb \
-	-a irqbalance_0.56-1ubuntu4-rmk1_armhf.deb \
+	-a u-boot-novena_2014.10-novena-rc12_armhf.deb \
+	-a irqbalance-imx_0.56-1ubuntu4-rmk1_armhf.deb \
 	-a linux-headers-novena_1.8_armhf.deb \
 	-a linux-image-novena_1.8_armhf.deb \
+	-a xorg-novena_1.0-r1_all.deb \
 	-a novena-disable-ssp_1.1-1_armhf.deb \
 	-a novena-eeprom-gui_1.2-r1_armhf.deb \
-	-a novena-firstrun_1.1-r1_all.deb \
+	-a novena-eeprom_2.1-1_armhf.deb \
+	-a novena-firstrun_1.4-r1_all.deb \
 	-l "sudo openssh-server ntp ntpdate dosfstools novena-eeprom \
             xserver-xorg-video-modesetting arandr user-setup vim emacs \
 	    hicolor-icon-theme gnome-icon-theme keychain locales evtest \
@@ -39,4 +41,8 @@ time sudo ./novena-image.sh \
 	    pm-utils qalc qalculate-gtk memtester locate mousetweaks \
 	    iptraf iperf iotop initramfs-tools gnupg-agent exfat-fuse \
 	    exfat-utils dict aptitude libqt5core5a libqt5gui5 \
-	    libqt5widgets5 console-setup lightdm"
+	    libqt5widgets5 console-setup lightdm netselect-apt \
+	    x11-apps x11-session-utils xbitmaps xfce4 xfce4-appfinder \
+	    xfce4-notifyd xfce4-session xfce4-settings xfdesktop4 \
+	    xfdesktop4-data xfonts-100dpi xfonts-75dpi xfonts-scalable \
+	    xfwm4 xfwm4-themes xinit xorg xorg-docs-core"
