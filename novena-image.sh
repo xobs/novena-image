@@ -366,7 +366,7 @@ remove_ssh_keys() {
 finalize_root() {
 	local root="$1"
 
-	inf "Resetting hostname to 'novena'"
+	info "Resetting hostname to 'novena'"
 	echo "novena" > "${root}/etc/hostname"
 
 	info "Enabling serial console support"
@@ -411,8 +411,8 @@ usage() {
 	echo "                   is specified, then this argument is required."
 	echo "    -p  --rootpass Which root password to use.  If unspecified,"
 	echo "                   defaults to 'kosagi'."
-	echo "    -l  --packages Specify a comma-separated list of packages"
-	echo "                   to install.  A default list is built-in."
+	echo "    -l  --packages Specify a space-separated list of packages"
+	echo "                   to install."
 	echo "    -s  --suite    Which Debian suite to install.  A list"
 	echo "                   of supported suites available may be found"
 	echo "                   at /usr/share/debootstrap/scripts"
