@@ -370,7 +370,7 @@ finalize_root() {
 	echo "novena" > "${root}/etc/hostname"
 
 	info "Enabling serial console support"
-	chroot "${root}" sudo systemctl enable serial-getty@ttymxc1.service || fail "Couldn't enable serial console"
+	chroot "${root}" systemctl enable serial-getty@ttymxc1.service || fail "Couldn't enable serial console"
 
 	info "Allowing scripts to start up on boot"
 	rm -f "${root}/usr/sbin/policy-rc.d"
