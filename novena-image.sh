@@ -102,6 +102,10 @@ cleanup() {
 			unset loopname
 		fi
 		kpartx -v -d "${diskname}"
+		for disk in $(losetup | grep "${diskname}" | awk '{print $1}')
+		do
+			losetup -d "${disk}"
+		done
 	fi
 }
 
@@ -157,6 +161,7 @@ t
 x
 i
 0x${disksig}
+r
 w
 q
 EOF
@@ -267,9 +272,15 @@ reset_password() {
 	echo "root:${rootpass}" | chroot "${root}" /usr/sbin/chpasswd || fail "Unable to reset root password"
 }
 
-add_sources() {
+add_key() {
 	local root="$1"
-	warn "!!! NEED TO ADD SOURCES HERE !!!"
+	local key="$2"
+
+	info "Adding key from ${key}"
+	if ! chroot "${root}" /usr/bin/apt-key add - < "${key}"
+	then
+		error "Unable to add key"
+	fi
 }
 
 apt_install() {
@@ -428,14 +439,15 @@ usage() {
 
 ##########################################################
 
-temp=`getopt -o m:d:t:p:r:l:s:a:hq \
-	--long quick,mirror:,disk:,type:,rootpass:,root:,packages:,suite:,add-deb:,help \
+temp=`getopt -o m:d:t:p:r:l:s:a:k:hq \
+	--long key:,quick,mirror:,disk:,type:,rootpass:,root:,packages:,suite:,add-deb:,help \
 	-n 'novena-image' -- "$@"`
 if [ $? != 0 ] ; then fail "Terminating..." >&2 ; exit 1 ; fi
 eval set -- "$temp"
 while true ; do
 	case "$1" in
 		-m|--mirror) mirror="$2"; shift 2 ;;
+		-k|--key) key="$2"; shift 2 ;;
 		-d|--disk) diskname="$2"; shift 2 ;;
 		-t|--type) disktype="$2"; shift 2 ;;
 		-p|--rootpass) rootpass="$2"; shift 2 ;;
@@ -516,7 +528,10 @@ checksha1sum "${filename}"
 reset_password "${root}" "${rootpass}"
 checksha1sum "${filename}"
 
-add_sources "${root}"
+if [ ! -z "${key}" ]
+then
+	add_key "${root}" "${key}"
+fi
 checksha1sum "${filename}"
 
 info "Selected packages: '${packages}'"
