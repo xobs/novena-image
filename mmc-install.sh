@@ -1,7 +1,7 @@
 #!/bin/bash
 if [ -z $1 ]
 then
-	echo "Usage: $0 [device]"
+	echo "Usage: $0 [device] <additional_args>"
 	echo "E.g. $0 /dev/mmcblk1"
 	exit 1
 fi
@@ -57,4 +57,5 @@ time sudo /bin/bash -x ./novena-image.sh \
 	    x11-apps x11-session-utils xbitmaps xfce4 xfce4-appfinder \
 	    xfce4-notifyd xfce4-session xfce4-settings xfdesktop4 \
 	    xfdesktop4-data xfonts-100dpi xfonts-75dpi xfonts-scalable \
-	    xfwm4 xfwm4-themes xinit xorg xorg-docs-core"
+	    xfwm4 xfwm4-themes xinit xorg xorg-docs-core" \
+        ${@:2}

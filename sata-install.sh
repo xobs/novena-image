@@ -32,4 +32,5 @@ exec sudo ./novena-image.sh \
 	    i2c-tools hwinfo android-tools-adb android-tools-fastboot \
 	    android-tools-fsutils bash-completion kicad ncurses-dev gdb lzop \
 	    gawk bison g++ gcc flex pkg-config valgrind lconv netcat wireshark \
-	    kismet aircrack-ng socat"
+	    kismet aircrack-ng socat" \
+	${@:2}
