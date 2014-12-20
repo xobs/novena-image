@@ -1,11 +1,22 @@
 #!/bin/bash
 
+# override with -p
 rootpass="kosagi"
+
 version="1.0"
+
+# override with -m
 mirror="http://127.0.0.1:3142/ftp.hk.debian.org/debian"
+
+# override with -l
 packages=""
+
+# override with -a
 debs=""
+
+# override with -t
 disktype="mmc"
+
 bootsize=+32M
 
 # Indicates whether we're bootstrapping onto a real disk
