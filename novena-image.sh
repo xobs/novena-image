@@ -108,6 +108,10 @@ unmount_in_dir() {
 }
 
 cleanup() {
+	if [ ${cross} -ne 0 ] && [ -d "${root}" ];
+	then
+		rm -f "${root}/usr/bin/qemu-arm-static"
+	fi
 	rm -f "${tmppkgsrc}"
 
 	info "Unmounting devices from chroot"
@@ -252,7 +256,21 @@ bootstrap() {
 	local mirror="$3"
 
 	info "Bootstrapping ${suite} onto ${root} from ${mirror}"
-	debootstrap "${suite}" "${root}" "${mirror}" || fail "Unable to debootstrap"
+
+	local DEBOOTSTRAP_OPTS=""
+	if [ ${cross} -ne 0 ]
+	then
+	    DEBOOTSTRAP_OPTS="--foreign --arch=armhf"
+	fi
+
+	debootstrap ${DEBOOTSTRAP_OPTS} "${suite}" "${root}" "${mirror}" || fail "Unable to debootstrap"
+
+	if [ ${cross} -ne 0 ]
+	then
+	    info "Finishing debootstrap via QEMU"
+	    cp `which qemu-arm-static` "${root}/usr/bin"
+	    chroot "${root}" /debootstrap/debootstrap --second-stage
+	fi
 }
 
 prepare_root() {
@@ -309,6 +327,15 @@ apt_install() {
 	export DEBIAN_FRONTEND=noninteractive
 	export DEBCONF_NONINTERACTIVE_SEEN=true
 
+	if [ ${cross} -ne 0 ]
+	then
+	    # "debootstrap --foreign" creates a blank sources.list
+	    info "Seeding sources.list..."
+	    SOURCEFILE="${root}/etc/apt/sources.list"
+	    echo "deb ${mirror} ${suite} main" > "${SOURCEFILE}"
+	    echo "deb-src ${mirror} ${suite} main" >> "${SOURCEFILE}"
+	fi
+	
 	info "Updating package listing"
 	chroot "${root}" apt-get -y update || fail "Couldn't update packages"
 
@@ -499,6 +526,17 @@ fi
 
 # Unmount things, and generally clean up on exit
 trap cleanup EXIT
+
+# Check for armv7l, enable cross-building otherwise.
+if ! uname -m | grep -q armv7l > /dev/null
+then
+    if ! which qemu-arm-static > /dev/null
+    then
+	fail "Host system is not non-armhf, so qemu-arm-static must be available on PATH for cross-building."
+    fi
+    info "Cross-building Novena image using qemu"
+    cross=1
+fi
 
 info "Creating a ${disktype} image"
 
