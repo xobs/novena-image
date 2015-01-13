@@ -7,6 +7,14 @@ packages=""
 debs=""
 disktype="mmc"
 bootsize=+32M
+encrypt_disk=0
+passphrase_hash=sha256
+# NB: aes-xts-* cipher is broken in stock Novena kernel.
+#     You must build a new kernel with:
+#     CONFIG_CRYPTO_AES_ARM_BS=n
+#     CONFIG_CRYPTO_XTS=m
+block_cipher=aes-cbc-essiv:sha256
+block_cipher_keysize=256
 
 # Indicates whether we're bootstrapping onto a real disk
 realdisk=0
@@ -212,18 +220,34 @@ prepare_disk() {
 		diskname="${diskname}p"
 	fi
 
+	swap_part=${diskname}2
+	root_part=${diskname}3
+
+	if [ ${encrypt_disk} -ne 0 ]; then
+		cryptsetup -d /dev/urandom create crypt-swap ${swap_part}
+		swap_part=/dev/mapper/crypt-swap
+
+		cryptsetup luksFormat -h ${passphrase_hash} -c ${block_cipher} -s ${block_cipher_keysize} ${root_part}
+		cryptsetup luksOpen ${root_part} crypt-root
+		root_part=/dev/mapper/crypt-root
+	fi
+
 	if [ "${quick}" != "1" ]
 	then
 		mkfs.vfat ${diskname}1 || fail "Unable to make boot partition"
-		mkswap -f ${diskname}2 || fail "Unable to make swap"
-		mkfs.ext4 -F ${diskname}3 || fail "Unable to make root filesystem"
+		mkswap -f ${swap_part} || fail "Unable to make swap"
+		mkfs.ext4 -F ${root_part} || fail "Unable to make root filesystem"
 	fi
 
 	mkdir -p "${root}" || fail "Unable to create factory mount directory"
-	mount ${diskname}3 "${root}" || fail "Unable to mount new root filesystem"
+	mount ${root_part} "${root}" || fail "Unable to mount new root filesystem"
 	mkdir -p "${root}/boot" || fail "Unable to create boot directory"
-	mount ${diskname}1 "${root}/boot" || fail "Unable to mount new boot filesystem"
-
+	if [ "x${disktype}" = "xsata" ]
+	then
+		mount -obind /boot "${root}/boot"
+	else
+		mount ${diskname}1 "${root}/boot"
+	fi
 }
 
 bootstrap() {
@@ -343,6 +367,40 @@ setup_recovery() {
 	fi
 }
 
+copy_over_modules() {
+	local root="$1"
+
+	mkdir -p ${root}/lib/modules
+	cp -r /lib/modules/$(uname -r) ${root}/lib/modules
+}
+
+create_initramfs() {
+	local root="$1"
+
+	kernel_version=$(uname -r)
+
+	copy_over_modules "${root}"
+	chroot "${root}" update-initramfs -c -k "${kernel_version}"
+	mkimage -A arm -O linux -T ramdisk -n "Initial Ram Disk" -d "${root}/boot/initrd.img-${kernel_version}" "${root}/boot/uInitrd"
+
+	if [ -e "${root}/boot/uEnv.txt" ]; then
+		info "${root}/boot/uEnv.txt exists, not modifying"
+	else
+		uInitrd_size=$(wc -c "${root}/boot/uInitrd")
+		initrd_addr_r=$(printf "0x%x" $(((0x11ff0000 - uInitrd_size) & 0xffff0000)))
+		echo -en 'earlyhook=if test "$rootdev" = "PARTUUID=4e6f7653-03"; then setenv rootdev /dev/mapper/crypt-root ; fi\0finalhook=if test "$rootdev" = "/dev/mapper/crypt-root"; then setenv initrd_addr_r'${initrd_addr_r}' ; fatload ${bootsrc} ${bootdev} ${initrd_addr_r} uInitrd ; fi' > "${root}/boot/uEnv.txt"
+	fi
+}
+
+configure_crypttab() {
+	local root="$1"
+	rootpath="/dev/sda"
+	cat > "${root}/etc/crypttab" <<EOF
+crypt-root      ${rootpath}3               none            luks
+crypt-swap      ${rootpath}2               /dev/urandom    swap
+EOF
+}
+
 configure_fstab() {
 	local root="$1"
 
@@ -356,14 +414,22 @@ configure_fstab() {
 		fail "Unrecognized disktype: ${disktype}"
 	fi
 
+	root_part="${rootpath}3"
+	swap_part="${rootpath}2"
+
+	if [ ${encrypt_disk} -ne 0 ]; then
+		root_part=/dev/mapper/crypt-root
+		swap_part=/dev/mapper/crypt-swap
+	fi
+
 	cat > "${root}/etc/fstab" <<EOF
-${rootpath}3   /                    ext4       barrier=1,noatime,nodiratime,errors=remount-ro     0  1
+${root_part}   /                    ext4       barrier=1,noatime,nodiratime,errors=remount-ro     0  1
 proc                 /proc                proc       defaults                      0  0
 devpts               /dev/pts             devpts     mode=0620,gid=5               0  0
 tmpfs                /tmp                 tmpfs      defaults                      0  0
 pstore               /var/pstore          pstore     defaults                      0  0
 /dev/disk/by-path/platform-2198000.usdhc-part1 /boot     vfat       defaults                      2  2
-${rootpath}2   swap                 swap       defaults                      0  0
+${swap_part}   swap                 swap       defaults                      0  0
 EOF
 }
 
@@ -439,8 +505,8 @@ usage() {
 
 ##########################################################
 
-temp=`getopt -o m:d:t:p:r:l:s:a:k:hq \
-	--long key:,quick,mirror:,disk:,type:,rootpass:,root:,packages:,suite:,add-deb:,help \
+temp=`getopt -o m:d:t:p:r:l:s:a:k:hqe \
+	--long passphrase-hash:,block-cipher:,block-cipher-keysize,encrypt,key:,quick,mirror:,disk:,type:,rootpass:,root:,packages:,suite:,add-deb:,help \
 	-n 'novena-image' -- "$@"`
 if [ $? != 0 ] ; then fail "Terminating..." >&2 ; exit 1 ; fi
 eval set -- "$temp"
@@ -457,6 +523,10 @@ while true ; do
 		-a|--add-deb) debs="${debs} $2"; if [ ! -e "$2" ]; then fail "Couldn't locate package: $2"; fi; shift 2 ;;
 		-q|--quick) quick=1; shift 1 ;;
 		-h|--help) usage; exit 0 ;;
+		-e|--encrypt) encrypt_disk=1; shift 1 ;;
+		--passphrase-hash) passphrase_hash="$2"; shift 1 ;;
+		--block-cipher) block_cipher="$2"; shift 1 ;;
+		--block-cipher-keysize) block_cipher_keysize="$2"; shift 1 ;;
 		--) shift ; break ;;
 		*) fail "Internal getopt error!" ; exit 1 ;;
 	esac
@@ -469,6 +539,10 @@ fi
 
 if [ "$(id -u)" != "0" ]; then
 	fail "As scary as it is, this script must be run as root"
+fi
+
+if [ ${encrypt_disk} -ne 0 ] && [ "${disktype}" != "sata" ]; then
+	fail "Can only do encrypt disk option with sata install"
 fi
 
 # Unmount things, and generally clean up on exit
@@ -546,11 +620,19 @@ else
 	info "No additional .deb files were requested"
 fi
 
+if [ ${encrypt_disk} -ne 0 ]; then
+	configure_crypttab "${root}"
+fi
+
 configure_fstab "${root}" "${disktype}"
 checksha1sum "${filename}"
 
 setup_recovery "${root}"
 checksha1sum "${filename}"
+
+if [ ${encrypt_disk} -ne 0 ]; then
+	create_initramfs "${root}"
+fi
 
 remove_ssh_keys "${root}"
 checksha1sum "${filename}"
@@ -565,3 +647,14 @@ then
 fi
 
 checksha1sum "${filename}"
+
+if [ "${disktype}" = "sata" ]; then
+	current_features=$(novena-eeprom | grep Features: | sed sed 's/[^(]*(*\([^)]*\)).*/\1/')
+	if ! echo "$current_features" | grep sataroot > /dev/null; then
+		echo "Everything was a success. Don't forget to run: "
+		echo
+		echo "novena-eeprom -f $current_features,sataroot -w"
+		echo
+		echo "To boot from your sata drive."
+	fi
+fi
