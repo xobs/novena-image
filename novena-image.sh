@@ -388,7 +388,7 @@ create_initramfs() {
 	else
 		uInitrd_size=$(wc -c "${root}/boot/uInitrd")
 		initrd_addr_r=$(printf "0x%x" $(((0x11ff0000 - uInitrd_size) & 0xffff0000)))
-		echo -en 'earlyhook=if test "$rootdev" = "PARTUUID=4e6f7653-03"; then setenv rootdev /dev/mapper/crypt-root ; fi\0finalhook=if test "$rootdev" = "/dev/mapper/crypt-root"; then setenv initrd_addr_r'${initrd_addr_r}' ; fatload ${bootsrc} ${bootdev} ${initrd_addr_r} uInitrd ; fi' > "${root}/boot/uEnv.txt"
+		echo -en 'earlyhook=if test "$rootdev" = "PARTUUID=4e6f7653-03"; then setenv rootdev /dev/mapper/crypt-root ; fi\0finalhook=if test "$rootdev" = "/dev/mapper/crypt-root"; then setenv initrd_addr_r '${initrd_addr_r}' ; fatload ${bootsrc} ${bootdev} ${initrd_addr_r} uInitrd ; fi' > "${root}/boot/uEnv.txt"
 	fi
 }
 
