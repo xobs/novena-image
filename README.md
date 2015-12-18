@@ -12,6 +12,19 @@ resulting image.  For examples, see wraper scripts such as "mmc-install.sh"
 and "sata-install.sh".
 
 
+Cross-Building
+--------------
+
+novena-image.sh can be run on ARM or non-ARM systems. Running on a
+non-ARM system is a "cross-build" and uses qemu-user to complete the
+installation. This require the executable `qemu-arm-static` to be
+available somewhere on the PATH. The package that supplies
+`qemu-arm-static` on Debian is `qemu-user-static`, on Ubuntu it's
+`qemu-arm-static`.
+
+There may be problems when running on armv7l systems that are set up as
+soft-float (not tested, not a common configuration).
+
 Recommended package lists
 -------------------------
 
