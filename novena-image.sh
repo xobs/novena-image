@@ -1,11 +1,22 @@
 #!/bin/bash
 
+# override with -p
 rootpass="kosagi"
+
 version="1.0"
+
+# override with -m
 mirror="http://127.0.0.1:3142/ftp.hk.debian.org/debian"
+
+# override with -l
 packages=""
+
+# override with -a
 debs=""
+
+# override with -t
 disktype="mmc"
+
 bootsize=+32M
 
 # Indicates whether we're bootstrapping onto a real disk
@@ -25,6 +36,13 @@ loopback_size=3965190144
 
 # Sometimes the SHA1 sum comes out as all zeroes.  For reasons why I don't know.
 allzeros_shasum="3b71f43ff30f4b15b5cd85dd9e95ebc7e84eb5a3"
+
+# Add the Novena repo to sources.list.d, override with --novena-repo or disable with -n
+novena_repo="http://127.0.0.1:3142/repo.novena.io/repo"
+
+# novena-image will automatically detect a non-ARM environment
+# and enable cross-debootstrapping
+cross=0
 
 checksha1sum() {
 	local file="$1"
@@ -90,6 +108,12 @@ unmount_in_dir() {
 }
 
 cleanup() {
+	if [ ${cross} -ne 0 ] && [ -d "${root}" ];
+	then
+		rm -f "${root}/usr/bin/qemu-arm-static"
+	fi
+	rm -f "${tmppkgsrc}"
+
 	info "Unmounting devices from chroot"
 	unmount_in_dir "${root}"
 
@@ -232,7 +256,21 @@ bootstrap() {
 	local mirror="$3"
 
 	info "Bootstrapping ${suite} onto ${root} from ${mirror}"
-	debootstrap "${suite}" "${root}" "${mirror}" || fail "Unable to debootstrap"
+
+	local DEBOOTSTRAP_OPTS=""
+	if [ ${cross} -ne 0 ]
+	then
+	    DEBOOTSTRAP_OPTS="--foreign --arch=armhf"
+	fi
+
+	debootstrap ${DEBOOTSTRAP_OPTS} "${suite}" "${root}" "${mirror}" || fail "Unable to debootstrap"
+
+	if [ ${cross} -ne 0 ]
+	then
+	    info "Finishing debootstrap via QEMU"
+	    cp `which qemu-arm-static` "${root}/usr/bin"
+	    chroot "${root}" /debootstrap/debootstrap --second-stage
+	fi
 }
 
 prepare_root() {
@@ -289,6 +327,15 @@ apt_install() {
 	export DEBIAN_FRONTEND=noninteractive
 	export DEBCONF_NONINTERACTIVE_SEEN=true
 
+	if [ ${cross} -ne 0 ]
+	then
+	    # "debootstrap --foreign" creates a blank sources.list
+	    info "Seeding sources.list..."
+	    SOURCEFILE="${root}/etc/apt/sources.list"
+	    echo "deb ${mirror} ${suite} main" > "${SOURCEFILE}"
+	    echo "deb-src ${mirror} ${suite} main" >> "${SOURCEFILE}"
+	fi
+	
 	info "Updating package listing"
 	chroot "${root}" apt-get -y update || fail "Couldn't update packages"
 
@@ -411,27 +458,31 @@ usage() {
 	echo "An Internet connection is required."
 	echo ""
 	echo "Options:"
-	echo "    -m  --mirror   Specify which Debian mirror to use."
-	echo "                   We suggest using apt-cacher-ng."
-	echo "    -d  --disk     A path to the block device to partition,"
-	echo "                   format, and create the image on.  Requires"
-	echo "                   you specify a --type as well."
-	echo "    -t  --type     Either 'mmc' or 'sata', the type of disk"
-	echo "                   specified by --disk."
-	echo "    -r  --root     Directory to install files into.  If no --disk"
-	echo "                   is specified, then this argument is required."
-	echo "    -p  --rootpass Which root password to use.  If unspecified,"
-	echo "                   defaults to 'kosagi'."
-	echo "    -l  --packages Specify a space-separated list of packages"
-	echo "                   to install."
-	echo "    -s  --suite    Which Debian suite to install.  A list"
-	echo "                   of supported suites available may be found"
-	echo "                   at /usr/share/debootstrap/scripts"
-	echo "    -a  --add-deb  Specify additional .deb files to include in"
-	echo "                   the disk image.  You may use --add-deb"
-	echo "                   multiple times to install more than one .deb."
-	echo "    -q  --quick    Don't repartition, reformat, or botstrap."
-	echo "    -h  --help     Print this help message."
+	echo "    -m  --mirror         Specify which Debian mirror to use."
+	echo "			       We suggest using apt-cacher-ng."
+	echo "	  -n  --no-novena-repo Don't search for packages in the"
+	echo "			       Kosagi Novena repo."
+	echo "	  --novena-repo	       Set a different URL to the Kosagi Novena"
+	echo "			       repo (default is apt-cacher-ng to repo.novena.io)."
+	echo "	  -d  --disk	       A path to the block device to partition,"
+	echo "                         format, and create the image on.  Requires"
+	echo "                         you specify a --type as well."
+	echo "    -t  --type           Either 'mmc' or 'sata', the type of disk"
+	echo "                         specified by --disk."
+	echo "    -r  --root           Directory to install files into.  If no --disk"
+	echo "                         is specified, then this argument is required."
+	echo "    -p  --rootpass       Which root password to use.  If unspecified,"
+	echo "                         defaults to 'kosagi'."
+	echo "    -l  --packages       Specify a space-separated list of packages"
+	echo "                         to install."
+	echo "    -s  --suite          Which Debian suite to install.  A list"
+	echo "                         of supported suites available may be found"
+	echo "                         at /usr/share/debootstrap/scripts"
+	echo "    -a  --add-deb        Specify additional .deb files to include in"
+	echo "                         the disk image.  You may use --add-deb"
+	echo "                         multiple times to install more than one .deb."
+	echo "    -q  --quick          Don't repartition, reformat, or botstrap."
+	echo "    -h  --help           Print this help message."
 	echo ""
 }
 
@@ -439,14 +490,16 @@ usage() {
 
 ##########################################################
 
-temp=`getopt -o m:d:t:p:r:l:s:a:k:hq \
-	--long key:,quick,mirror:,disk:,type:,rootpass:,root:,packages:,suite:,add-deb:,help \
+temp=`getopt -o m:nd:t:p:r:l:s:a:k:hq \
+	--long key:,quick,mirror:,no-novena-repo,novena-repo:,disk:,type:,rootpass:,root:,packages:,suite:,add-deb:,help \
 	-n 'novena-image' -- "$@"`
 if [ $? != 0 ] ; then fail "Terminating..." >&2 ; exit 1 ; fi
 eval set -- "$temp"
 while true ; do
 	case "$1" in
 		-m|--mirror) mirror="$2"; shift 2 ;;
+		-n|--no-novena-repo) novena_repo=""; shift 1 ;;
+		--novena-repo) novena_repo="$2"; shift 2 ;;
 		-k|--key) key="$2"; shift 2 ;;
 		-d|--disk) diskname="$2"; shift 2 ;;
 		-t|--type) disktype="$2"; shift 2 ;;
@@ -473,6 +526,17 @@ fi
 
 # Unmount things, and generally clean up on exit
 trap cleanup EXIT
+
+# Check for armv7l, enable cross-building otherwise.
+if ! uname -m | grep -q armv7l > /dev/null
+then
+    if ! which qemu-arm-static > /dev/null
+    then
+	fail "Host system is not non-armhf, so qemu-arm-static must be available on PATH for cross-building."
+    fi
+    info "Cross-building Novena image using qemu"
+    cross=1
+fi
 
 info "Creating a ${disktype} image"
 
@@ -533,6 +597,16 @@ then
 	add_key "${root}" "${key}"
 fi
 checksha1sum "${filename}"
+
+if [ ! -z "${novena_repo}" ]
+then
+    # This file kosagi-tmp.list is temporary while the installer runs only,
+    # add the kosagi-repo package via -a to have a permanent entry.
+    info "Adding temporary repo.novena.io to package sources"
+    tmppkgsrc="${root}/etc/apt/sources.list.d/kosagi-tmp.list"
+    echo "deb ${novena_repo} ${suite} main" > "${tmppkgsrc}"
+    echo "deb-src ${novena_repo} ${suite} main" >> "${tmppkgsrc}"
+fi
 
 info "Selected packages: '${packages}'"
 apt_install "${root}" "${packages}"
